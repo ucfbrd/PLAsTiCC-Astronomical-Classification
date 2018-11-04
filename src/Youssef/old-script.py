@@ -1,61 +1,12 @@
-"""
-PLAsTiCC_in_a_kernel_meta_and_data
-----------------------------------
-@website https://www.kaggle.com/ogrellier/plasticc-in-a-kernel-meta-and-data
-
-@author Olivier https://www.kaggle.com/ogrellier
-
-Goal :
-------
-Train 5 lightgbms on the meta_data + aggregated data
-
-Then go through test data in chunks and generate predictions
-
-New in this version :
----------------------
-1. This versions adds some of the Flux calculations made available by MichaelApers https://www.kaggle.com/michaelapers
-    here https://www.kaggle.com/michaelapers/the-plasticc-astronomy-starter-kit
-2. class 99 mean adjustment
-
-"""
-
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
-import gc
 import matplotlib.pyplot as plt
 import seaborn as sns
 import lightgbm as lgb
-import logging
-
-
-def create_logger():
-    logger_ = logging.getLogger('main')
-    logger_.setLevel(logging.DEBUG)
-    fh = logging.FileHandler('simple_lightgbm.log')
-    fh.setLevel(logging.DEBUG)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('[%(levelname)s]%(asctime)s:%(name)s:%(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    # add the handlers to the logger
-    logger_.addHandler(fh)
-    logger_.addHandler(ch)
-
-
-def get_logger():
-    return logging.getLogger('main')
 
 
 def lgb_multi_weighted_logloss(y_true, y_preds):
-    """
-    @author olivier https://www.kaggle.com/ogrellier
-    multi logloss for PLAsTiCC challenge
-    """
-    # class_weights taken from Giba's topic : https://www.kaggle.com/titericz
-    # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/67194
-    # with Kyle Boone's post https://www.kaggle.com/kyleboone
     classes = [6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95]
     class_weight = {6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}
     if len(np.unique(y_true)) > 14:
@@ -84,13 +35,6 @@ def lgb_multi_weighted_logloss(y_true, y_preds):
 
 
 def multi_weighted_logloss(y_true, y_preds):
-    """
-    @author olivier https://www.kaggle.com/ogrellier
-    multi logloss for PLAsTiCC challenge
-    """
-    # class_weights taken from Giba's topic : https://www.kaggle.com/titericz
-    # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/67194
-    # with Kyle Boone's post https://www.kaggle.com/kyleboone
     classes = [6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95]
     class_weight = {6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}
     if len(np.unique(y_true)) > 14:
@@ -118,7 +62,6 @@ def multi_weighted_logloss(y_true, y_preds):
 
 
 def predict_chunk(df_, clfs_, meta_, features, train_mean):
-
     df_['flux_ratio_sq'] = np.power(df_['flux'] / df_['flux_err'], 2.0)
     df_['flux_by_flux_ratio_sq'] = df_['flux'] * df_['flux_ratio_sq']
 
@@ -161,12 +104,11 @@ def predict_chunk(df_, clfs_, meta_, features, train_mean):
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_, columns=['class_' + str(s) for s in clfs_[0].classes_])
     preds_df_['object_id'] = full_test['object_id']
-    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99) 
+    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
 
     print(preds_df_['class_99'].mean())
 
     del agg_, full_test, preds_
-    gc.collect()
 
     return preds_df_
 
@@ -181,7 +123,6 @@ def save_importances(importances_):
 
 
 def train_classifiers(full_train=None, y=None):
-
     folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
     clfs = []
     importances = pd.DataFrame()
@@ -233,9 +174,7 @@ def train_classifiers(full_train=None, y=None):
 
 def get_aggregations():
     return {
-        # Dropped mjd aggregations on CPMP advice
-        # see https://www.kaggle.com/c/PLAsTiCC-2018/discussion/69696
-        # 'mjd': ['min', 'max', 'size'],
+
         'passband': ['mean', 'std', 'var'],  # ''min', 'max', 'mean', 'median', 'std'],
         'flux': ['min', 'max', 'mean', 'median', 'std'],
         'flux_err': ['min', 'max', 'mean', 'median', 'std'],
@@ -248,10 +187,6 @@ def get_new_columns(aggs):
 
 
 def add_features_to_agg(df):
-    # CPMP using the following feature was really silliy :)
-    # df['mjd_diff'] = df['mjd_max'] - df['mjd_min']
-    # see https://www.kaggle.com/c/PLAsTiCC-2018/discussion/69696
-    
     # The others may be useful
     df['flux_diff'] = df['flux_max'] - df['flux_min']
     df['flux_dif2'] = (df['flux_max'] - df['flux_min']) / df['flux_mean']
@@ -261,6 +196,7 @@ def add_features_to_agg(df):
     # del df['mjd_max'], df['mjd_min']
 
     return df
+
 
 def main():
     train = pd.read_csv('../input/training_set.csv')
@@ -273,23 +209,17 @@ def main():
     aggs['flux_ratio_sq'] = ['sum']
     aggs['flux_by_flux_ratio_sq'] = ['sum']
 
-    # passbands = [f for f in train if 'passband_' in f]
-    # get_logger().info('Passband features : {}'.format(passbands))
-    # for pb in passbands:
-    #     aggs[pb] = ['mean']
-
     agg_train = train.groupby('object_id').agg(aggs)
     new_columns = get_new_columns(aggs)
     agg_train.columns = new_columns
 
     agg_train = add_features_to_agg(df=agg_train)
-    
+
     agg_train.head()
 
     del train
-    gc.collect()
 
-    meta_train = pd.read_csv('../input/training_set_metadata.csv')
+    meta_train = pd.read_csv('/Users/youssefberrada/Documents/Github/PLAsTICC-Astronomical-Classification/data/training_set_metadata.csv')
     meta_train.head()
 
     full_train = agg_train.reset_index().merge(
@@ -309,7 +239,7 @@ def main():
 
     save_importances(importances_=importances)
 
-    meta_test = pd.read_csv('../input/test_set_metadata.csv')
+    meta_test = pd.read_csv('/Users/youssefberrada/Documents/Github/PLAsTICC-Astronomical-Classification/data//test_set_metadata.csv')
 
     import time
 
@@ -317,7 +247,7 @@ def main():
     chunks = 5000000
     remain_df = None
 
-    for i_c, df in enumerate(pd.read_csv('../input/test_set.csv', chunksize=chunks, iterator=True)):
+    for i_c, df in enumerate(pd.read_csv('/Users/youssefberrada/Documents/Github/PLAsTICC-Astronomical-Classification/data/test_set.csv', chunksize=chunks, iterator=True)):
         # Check object_ids
         # I believe np.unique keeps the order of group_ids as they appear in the file
         unique_ids = np.unique(df['object_id'])
@@ -343,7 +273,6 @@ def main():
             preds_df.to_csv('predictions_v3.csv', header=False, mode='a', index=False, float_format='%.6f')
 
         del preds_df
-        gc.collect()
 
         if (i_c + 1) % 10 == 0:
             get_logger().info('%15d done in %5.1f' % (chunks * (i_c + 1), (time.time() - start) / 60))
@@ -367,10 +296,4 @@ def main():
 
 
 if __name__ == '__main__':
-    gc.enable()
-    create_logger()
-    try:
-        main()
-    except Exception:
-        get_logger().exception('Unexpected Exception Occured')
-        raise
+    main()
